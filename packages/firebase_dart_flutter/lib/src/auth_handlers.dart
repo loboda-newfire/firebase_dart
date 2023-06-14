@@ -5,39 +5,11 @@ import 'package:firebase_dart/core.dart';
 import 'package:firebase_dart/auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:platform_info/platform_info.dart' as platform_info;
 import 'package:logging/logging.dart';
 import 'package:uni_links/uni_links.dart';
-
-class FacebookAuthHandler extends DirectAuthHandler {
-  FacebookAuthHandler() : super(FacebookAuthProvider.PROVIDER_ID);
-
-  @override
-  Future<void> signOut(FirebaseApp app, User user) async {
-    try {
-      var facebookLogin = FacebookAuth.instance;
-      await facebookLogin.logOut();
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  @override
-  Future<AuthCredential?> directSignIn(
-      FirebaseApp app, AuthProvider provider) async {
-    try {
-      var facebookLogin = FacebookAuth.instance;
-      var accessToken = (await facebookLogin.login()).accessToken!;
-
-      return FacebookAuthProvider.credential(accessToken.token);
-    } catch (e) {
-      return null;
-    }
-  }
-}
 
 class GoogleAuthHandler extends DirectAuthHandler {
   GoogleAuthHandler() : super(GoogleAuthProvider.PROVIDER_ID);
