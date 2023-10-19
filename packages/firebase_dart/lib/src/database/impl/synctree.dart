@@ -53,8 +53,8 @@ class MasterView {
   /// because the data in this view is not yet complete, it will return true.
   bool contains(QueryFilter f) {
     if (f == masterFilter) return true;
-    if (f.orderBy != masterFilter.orderBy) return false;
     if (!masterFilter.limits) return true;
+    if (f.orderBy != masterFilter.orderBy) return false;
     if (!_data.localVersion.isComplete) {
       if (masterFilter.limit == null) {
         if (masterFilter.validInterval.contains(f.validInterval)) return true;
@@ -371,25 +371,16 @@ class SyncPoint {
   }
 
   MasterView getMasterViewForFilter(QueryFilter filter) {
-    // first check if filter already in one of the master views
-    for (var v in views.values) {
-      if (v.masterFilter == filter || v.observers.containsKey(filter)) {
-        return v;
-      }
-    }
-
-    // secondly, check if filter might be contained by one of the master views
-    for (var v in views.values) {
-      if (v.contains(filter)) {
-        return v;
-      }
-    }
-
-    // lastly, create a new master view
-    return createMasterViewForFilter(filter);
+    return getMasterViewIfExistsForFilter(filter) ??
+        createMasterViewForFilter(filter);
   }
 
   MasterView createMasterViewForFilter(QueryFilter filter) {
+    if (filter != const QueryFilter() && !filter.limits) {
+      return createMasterViewForFilter(const QueryFilter());
+    }
+    if (views[filter] != null) return views[filter]!;
+
     var unlimitedFilter = views.keys.firstWhereOrNull((q) => !q.limits);
     // TODO: do not create new master views when already an unlimited view exists
     assert(views[filter] == null);
@@ -469,7 +460,12 @@ class SyncPoint {
 
 /// Registers listeners for queries
 abstract class QueryRegistrar {
-  Future<void> register(QuerySpec query, String? hash);
+  /// Registers a listener for [query] with the given [hash] and [priority].
+  ///
+  /// The [priority] is used to determine the order in which queries are
+  /// registered. Queries with a higher priority are registered first.
+  Future<void> register(QuerySpec query,
+      {required String hash, required int priority});
 
   Future<void> unregister(QuerySpec query);
 
@@ -482,46 +478,47 @@ abstract class QueryRegistrar {
 class SequentialQueryRegistrar extends QueryRegistrar {
   final QueryRegistrar delegateTo;
 
-  final Map<QuerySpec, Future<bool>> _activeRegistrations = {};
+  final Map<QuerySpec, bool> _localStates = {};
+  final Map<QuerySpec, Future<bool>> _remoteStates = {};
+
+  Future<void> _setState(
+      QuerySpec query, bool state, Future<void> Function() action) async {
+    assert((_localStates[query] ?? false) != state);
+    _localStates[query] = state;
+    var f = _remoteStates[query] ?? Future.value(false);
+    _remoteStates[query] = f.then((v) async {
+      if (_localStates[query] == v) {
+        // The state is already correct, nothing to do
+        return v;
+      }
+
+      // The state is not correct, perform action
+      await action();
+      return state;
+    });
+    await _remoteStates[query];
+    // This is the bug fix. We need to wait for the remote state
+    // to be updated with the new state, otherwise we might not
+    // see it in the next call to _setState.
+    await _remoteStates[query];
+  }
 
   SequentialQueryRegistrar(this.delegateTo);
 
   @override
-  Future<void> register(QuerySpec query, String? hash) {
-    if (_activeRegistrations[query] != null) {
-      // register should never be called twice for the same query without an unregister in between
-      throw StateError('Query $query already registered');
-    }
-    return _activeRegistrations[query] ??= Future(() async {
-      if (_activeRegistrations[query] == null) {
-        // unregister was called before register completed
-        // we do not forward the call to the delegate and return false so that the unregister is also not forwarded
-        return false;
-      }
-      await delegateTo.register(query, hash);
-      return true;
-    });
+  Future<void> register(QuerySpec query,
+      {required String hash, required int priority}) {
+    return _setState(query, true,
+        () => delegateTo.register(query, hash: hash, priority: priority));
   }
 
   @override
   Future<void> unregister(QuerySpec query) {
-    if (_activeRegistrations[query] == null) {
-      // unregister should never be called when not registered
-      throw StateError('Query $query not registered');
-    }
-
-    var f = _activeRegistrations.remove(query);
-    return f!.then((v) async {
-      if (v) {
-        // only forward unregister if the register call was forwarded to the delegate
-        await delegateTo.unregister(query);
-      }
-    });
+    return _setState(query, false, () => delegateTo.unregister(query));
   }
 
   @override
   Future<void> close() {
-    _activeRegistrations.clear();
     return delegateTo.close();
   }
 }
@@ -534,12 +531,13 @@ class PersistActiveQueryRegistrar extends QueryRegistrar {
   PersistActiveQueryRegistrar(this.persistenceManager, this.delegateTo);
 
   @override
-  Future<void> register(QuerySpec query, String? hash) async {
+  Future<void> register(QuerySpec query,
+      {required String hash, required int priority}) async {
     // first set query active then register as otherwise the tracked query will not be stored as complete
     persistenceManager.runInTransaction(() {
       persistenceManager.setQueryActive(query);
     });
-    await delegateTo.register(query, hash);
+    await delegateTo.register(query, hash: hash, priority: priority);
   }
 
   @override
@@ -556,12 +554,23 @@ class PersistActiveQueryRegistrar extends QueryRegistrar {
   }
 }
 
+class Registration {
+  final String hash;
+
+  final int priority;
+
+  final Completer<void> completer = Completer();
+
+  final QuerySpec query;
+
+  Registration(this.query, {required this.hash, required this.priority});
+}
+
 class PrioritizedQueryRegistrar extends QueryRegistrar {
   final QueryRegistrar delegateTo;
 
-  final Map<QuerySpec, MapEntry<Completer<void>, String>>
-      lowPriorityPendingRegistrations = {};
-  final Map<QuerySpec, Completer<void>> highPriorityPendingRegistrations = {};
+  final Map<QuerySpec, Registration> pendingRegistrations = {};
+
   final Map<QuerySpec, Completer<void>> pendingDeregistrations = {};
 
   Future<void>? _handleFuture;
@@ -585,26 +594,16 @@ class PrioritizedQueryRegistrar extends QueryRegistrar {
       return;
     }
 
-    if (highPriorityPendingRegistrations.isNotEmpty) {
-      var queries =
-          highPriorityPendingRegistrations.keys.take(maxOperations).toList();
-      for (var q in queries) {
-        var c = highPriorityPendingRegistrations.remove(q)!;
+    if (pendingRegistrations.isNotEmpty) {
+      var registrations = pendingRegistrations.values.toList()
+        ..sort((a, b) => -Comparable.compare(a.priority, b.priority));
 
-        c.complete(delegateTo.register(q, null));
-      }
-      return;
-    }
-    if (lowPriorityPendingRegistrations.isNotEmpty) {
-      var queries =
-          lowPriorityPendingRegistrations.keys.take(maxOperations).toList();
-      for (var q in queries) {
-        var e = lowPriorityPendingRegistrations.remove(q)!;
-        var c = e.key;
+      for (var r in registrations.take(maxOperations)) {
+        pendingRegistrations.remove(r.query);
 
-        c.complete(delegateTo.register(q, e.value));
+        r.completer.complete(
+            delegateTo.register(r.query, hash: r.hash, priority: r.priority));
       }
-      return;
     }
   }
 
@@ -613,8 +612,7 @@ class PrioritizedQueryRegistrar extends QueryRegistrar {
       if (_handleFuture == null) return;
       _handle();
       _handleFuture = null;
-      if (highPriorityPendingRegistrations.isNotEmpty ||
-          lowPriorityPendingRegistrations.isNotEmpty ||
+      if (pendingRegistrations.isNotEmpty ||
           pendingDeregistrations.isNotEmpty) {
         _scheduleHandle();
       }
@@ -622,46 +620,38 @@ class PrioritizedQueryRegistrar extends QueryRegistrar {
   }
 
   @override
-  Future<void> register(QuerySpec query, String? hash) {
+  Future<void> register(QuerySpec query,
+      {required String hash, required int priority}) {
     assert(!_isClosed);
 
     // if pendingDerigstration contains query, we don't remove it and add it again to the pendingRegistrations
     // if we would remove it, and not register again, the current value would not be advertised again to the client
 
-    if (highPriorityPendingRegistrations.containsKey(query) ||
-        lowPriorityPendingRegistrations.containsKey(query)) {
+    if (pendingRegistrations.containsKey(query)) {
       // this means register was called for the same query twice without an unregister in between
       throw StateError('Query $query registration already in progress');
     }
 
-    var c = highPriorityPendingRegistrations.remove(query) ??
-        lowPriorityPendingRegistrations.remove(query)?.key ??
-        Completer();
-
-    if (hash != null) {
-      lowPriorityPendingRegistrations[query] = MapEntry(c, hash);
-    } else {
-      highPriorityPendingRegistrations[query] = c;
-    }
+    var registration = pendingRegistrations[query] =
+        Registration(query, priority: priority, hash: hash);
 
     _scheduleHandle();
-    return c.future;
+    return registration.completer.future;
   }
 
   @override
   Future<void> unregister(QuerySpec query) {
     assert(!_isClosed);
 
-    var c = highPriorityPendingRegistrations.remove(query) ??
-        lowPriorityPendingRegistrations.remove(query)?.key;
+    var r = pendingRegistrations.remove(query);
 
-    if (c != null) {
+    if (r != null) {
       // not yet registered
-      c.complete();
+      r.completer.complete();
       return Future.value();
     }
 
-    c = pendingDeregistrations[query] ??= Completer();
+    var c = pendingDeregistrations[query] ??= Completer();
     _scheduleHandle();
     return c.future;
   }
@@ -686,7 +676,9 @@ class QueryRegistrarTree {
   }
 
   void setActiveQueriesOnPath(Path<Name> path, Iterable<QueryFilter> filters,
-      String? Function(QueryFilter filter) hashFcn) {
+      {required String Function(QueryFilter filter) hashFcn,
+      required int Function(QueryFilter filter) priorityFcn,
+      required void Function(QueryFilter filter) onRegistered}) {
     var activeFilters = _activeQueries.putIfAbsent(path, () => {});
 
     var filtersToActivate = filters.toSet().difference(activeFilters);
@@ -694,7 +686,10 @@ class QueryRegistrarTree {
     var filtersToDeactivate = activeFilters.difference(filters.toSet());
 
     for (var f in filtersToActivate) {
-      queryRegistrar.register(QuerySpec(path, f), hashFcn(f));
+      queryRegistrar
+          .register(QuerySpec(path, f),
+              hash: hashFcn(f), priority: priorityFcn(f))
+          .then((_) => onRegistered(f));
     }
 
     for (var f in filtersToDeactivate) {
@@ -714,7 +709,8 @@ class QueryRegistrarTree {
 
 class NoopQueryRegistrar extends QueryRegistrar {
   @override
-  Future<void> register(QuerySpec query, String? hash) {
+  Future<void> register(QuerySpec query,
+      {String? hash, required int priority}) {
     return Future.value();
   }
 
@@ -775,12 +771,18 @@ class SyncTree {
       var point = node.value;
       var queries = point.minimalSetOfQueries.toList();
 
-      registrar.setActiveQueriesOnPath(
-          path,
-          queries,
-          (f) => point.views[f]?._data.serverVersion.isComplete == true
-              ? point.views[f]!._data.serverVersion.value.hash
-              : null);
+      registrar.setActiveQueriesOnPath(path, queries,
+          hashFcn: (f) => point.views[f]!._data.serverVersion.value.hash,
+          priorityFcn: (f) =>
+              point.views[f]?._data.serverVersion.isComplete == true ? 0 : 1,
+          onRegistered: (f) {
+            if (_isDestroyed) return;
+            if (point.views[f] == null) return;
+            applyServerOperation(
+                TreeOperation.overwrite(
+                    path, point.views[f]!._data.serverVersion.value),
+                QuerySpec(path, f));
+          });
     }
     _invalidPaths.clear();
     _handleInvalidPointsFuture?.cancel();
@@ -868,7 +870,11 @@ class SyncTree {
   }
 
   void applyListenRevoked(Path<Name> path, QueryFilter? filter) {
-    var view = root.subtreeNullable(path)?.value.views.remove(filter);
+    var view = root
+        .subtreeNullable(path)
+        ?.value
+        .views
+        .remove(filter ?? const QueryFilter());
     if (view == null) return;
     for (var t in view.observers.values) {
       t.dispatchEvent(CancelEvent(

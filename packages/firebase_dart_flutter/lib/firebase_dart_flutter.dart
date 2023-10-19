@@ -39,10 +39,10 @@ class FirebaseDartFlutter {
         authHandler: AuthHandler.from([
           GoogleAuthHandler(),
           AppleAuthHandler(),
-          AndroidAuthHandler(),
+          FlutterAuthHandler(),
           const AuthHandler(),
         ]),
-        applicationVerifier: AndroidAuthHandler(),
+        applicationVerifier: kIsWeb ? null : FlutterApplicationVerifier(),
         smsRetriever: AndroidSmsRetriever(),
         platform: await _getPlatform());
   }

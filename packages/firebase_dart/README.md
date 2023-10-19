@@ -1,3 +1,5 @@
+[:heart: sponsor](https://github.com/sponsors/rbellens)
+
 
 A pure Dart implementation of the Firebase client
 
@@ -111,14 +113,14 @@ This implementation does not yet support all functionalities of the firebase aut
 | FirebaseAuth.signInWithCustomToken | ✅
 | FirebaseAuth.signInWithEmailAndPassword | ✅
 | FirebaseAuth.signInWithEmailLink | ✅
-| FirebaseAuth.signInWithPhoneNumber | ❌
+| FirebaseAuth.signInWithPhoneNumber | ✅
 | FirebaseAuth.signInWithPopup | ❌
 | FirebaseAuth.signInWithRedirect | ❌
 | FirebaseAuth.signInWithAuthProvider | ❌
 | FirebaseAuth.signOut | ✅
 | FirebaseAuth.userChanges | ✅
 | FirebaseAuth.verifyPasswordResetCode | ✅
-| FirebaseAuth.verifyPhoneNumber | ❌
+| FirebaseAuth.verifyPhoneNumber | ✅
 | User.delete | ✅
 | User.getIdToken | ✅
 | User.getIdTokenResult | ✅
@@ -133,7 +135,7 @@ This implementation does not yet support all functionalities of the firebase aut
 | User.updatePhoneNumber | ❌
 | User.updateProfile | ✅
 | User.verifyBeforeUpdateEmail | ❌
-| User.multiFactor | ❌
+| User.multiFactor | ✅
 
 
 [Multi-tenancy](https://cloud.google.com/identity-platform/docs/multi-tenancy) is currently not supported.
@@ -221,3 +223,4 @@ Creating and maintaining this package takes a lot of time. If you like the resul
 With your support, I will be able to further improve and support this project.
 Also, check out my other dart packages at [pub.dev](https://pub.dev/packages?q=publisher%3Aappsup.be).
 
+Many thanks to [Tim Whiting](https://github.com/TimWhiting) for his support.

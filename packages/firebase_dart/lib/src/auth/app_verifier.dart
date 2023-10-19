@@ -1,8 +1,4 @@
-import 'package:firebase_dart/src/auth/impl/auth.dart';
-
 import 'auth.dart';
-
-export 'app_verifier_io.dart' if (dart.library.html) 'app_verifier_web.dart';
 
 abstract class ApplicationVerifier {
   Future<ApplicationVerificationResult> verify(FirebaseAuth auth, String nonce);
@@ -14,6 +10,11 @@ class ApplicationVerificationResult {
   final String token;
 
   ApplicationVerificationResult(this.type, this.token);
+  ApplicationVerificationResult.apns(String token) : this('apns', token);
+  ApplicationVerificationResult.recaptcha(String token)
+      : this('recaptcha', token);
+  ApplicationVerificationResult.safetyNet(String token)
+      : this('safetynet', token);
 
   @override
   String toString() {
@@ -21,27 +22,23 @@ class ApplicationVerificationResult {
   }
 }
 
-abstract class BaseRecaptchaVerifier implements ApplicationVerifier {
-  const BaseRecaptchaVerifier();
-
-  Future<String?> getRecaptchaParameters(FirebaseAuthImpl auth) async {
-    var rpcHandler = auth.rpcHandler;
-    return await rpcHandler.getRecaptchaParam();
-  }
+class RecaptchaApplicationVerifier implements ApplicationVerifier {
+  const RecaptchaApplicationVerifier();
 
   @override
   Future<ApplicationVerificationResult> verify(
       FirebaseAuth auth, String nonce) async {
-    return ApplicationVerificationResult(
-        'recaptcha', await verifyWithRecaptcha(auth));
-  }
+    var verifier = RecaptchaVerifier(auth: auth);
 
-  Future<String> verifyWithRecaptcha(FirebaseAuth auth);
+    return ApplicationVerificationResult.recaptcha(await verifier.verify());
+  }
 }
 
-class DummyApplicationVerifier extends BaseRecaptchaVerifier {
+class DummyApplicationVerifier implements ApplicationVerifier {
   @override
-  Future<String> verifyWithRecaptcha(FirebaseAuth auth) async {
-    return 'this_will_only_work_on_testing';
+  Future<ApplicationVerificationResult> verify(
+      FirebaseAuth auth, String nonce) async {
+    return ApplicationVerificationResult.recaptcha(
+        'this_will_only_work_on_testing');
   }
 }

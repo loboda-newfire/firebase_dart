@@ -24,18 +24,18 @@ class OperationEvent {
       throw ArgumentError.value(data, 'data', 'should be a map');
     }
 
-    bool _isBaseType(dynamic v) {
+    bool isBaseType(dynamic v) {
       if (v is num || v is bool || v is String || v == null) return true;
       if (v is Map) {
-        return v.keys.every((k) => k is String) && v.values.every(_isBaseType);
+        return v.keys.every((k) => k is String) && v.values.every(isBaseType);
       }
       if (v is List) {
-        return v.every(_isBaseType);
+        return v.every(isBaseType);
       }
       return false;
     }
 
-    if (!_isBaseType(data)) {
+    if (!isBaseType(data)) {
       throw ArgumentError.value(data, 'data', 'should be a base type');
     }
   }
@@ -121,7 +121,7 @@ abstract class PersistentConnection {
   ///
   /// Returns possible warning messages.
   Future<Iterable<String>> listen(String path,
-      {required QueryFilter query, String? hash});
+      {required QueryFilter query, required String hash});
 
   /// Unregisters a listener
   Future<void> unlisten(String path, {required QueryFilter query});

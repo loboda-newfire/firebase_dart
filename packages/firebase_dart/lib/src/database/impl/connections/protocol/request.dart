@@ -50,13 +50,23 @@ class Request {
   Request.unauth() : this(DataMessage.actionUnauth, MessageBody());
 
   Request.listen(String path,
-      {required QueryFilter query, required int tag, String? hash})
-      : this(DataMessage.actionListen,
-            MessageBody(path: path, query: query, tag: tag, hash: hash));
+      {required QueryFilter query, required int tag, required String hash})
+      : this(
+            DataMessage.actionListen,
+            MessageBody(
+                path: path,
+                query: query.limits ? query : null,
+                tag: query.limits ? tag : null,
+                hash: hash));
 
   Request.unlisten(String path, {required QueryFilter query, required int tag})
-      : this(DataMessage.actionUnlisten,
-            MessageBody(path: path, query: query, tag: tag));
+      : this(
+            DataMessage.actionUnlisten,
+            MessageBody(
+              path: path,
+              query: query.limits ? query : null,
+              tag: query.limits ? tag : null,
+            ));
 
   Request.onDisconnectPut(String path, data)
       : this(DataMessage.actionOnDisconnectPut,

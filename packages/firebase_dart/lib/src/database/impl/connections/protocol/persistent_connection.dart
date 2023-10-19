@@ -88,7 +88,7 @@ class PersistentConnectionImpl extends PersistentConnection
     String? newHost;
     int? port;
     if (hostPort != null) {
-      newHost = hostPort.length >= 1 ? hostPort[0] : null;
+      newHost = hostPort.isNotEmpty ? hostPort[0] : null;
       port = hostPort.length > 1 ? int.parse(hostPort[1]) : null;
     }
     _url = _url.replace(host: newHost, port: port);
@@ -103,6 +103,9 @@ class PersistentConnectionImpl extends PersistentConnection
     }
     var path =
         message.body.path == null ? null : Name.parsePath(message.body.path!);
+    if (query == null && path != null && message.body.query != null) {
+      query = QuerySpec(path, message.body.query!);
+    }
     switch (message.action) {
       case DataMessage.actionSet:
       case DataMessage.actionMerge:
@@ -174,7 +177,7 @@ class PersistentConnectionImpl extends PersistentConnection
 
   @override
   Future<Iterable<String>> listen(String path,
-      {required QueryFilter query, String? hash}) async {
+      {required QueryFilter query, required String hash}) async {
     var def = QuerySpec(Name.parsePath(path), query);
     var tag = _nextTag++;
     _tagToQuery[tag] = def;
@@ -386,6 +389,8 @@ class PersistentConnectionImpl extends PersistentConnection
     }
     // Reset timeouts
     _retryHelper.signalSuccess();
+
+    _inactivityTimer?.cancel();
   }
 
   @override
@@ -489,6 +494,7 @@ class PersistentConnectionImpl extends PersistentConnection
     if (forceQueue || connectionState == ConnectionState.connected) {
       _queueRequest(request);
     }
+    _doIdleCheck();
     return request.response.then<MessageBody>((r) {
       _outstandingRequests.remove(request);
       if (r.message.body.status == MessageBody.statusOk) {
@@ -508,7 +514,7 @@ class PersistentConnectionImpl extends PersistentConnection
 
     _requestFlush = Completer();
 
-    void _handleNext() {
+    void handleNext() {
       if (_requestQueue.isEmpty) {
         _requestFlush?.complete();
         _requestFlush = null;
@@ -518,11 +524,11 @@ class PersistentConnectionImpl extends PersistentConnection
       var request = _requestQueue.removeAt(0);
       Future.value(request).then((request) {
         _doRequest(request);
-        _handleNext();
+        handleNext();
       });
     }
 
-    _handleNext();
+    handleNext();
 
     return _requestFlush!.future;
   }

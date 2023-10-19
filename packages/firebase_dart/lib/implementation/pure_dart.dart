@@ -12,9 +12,17 @@ import 'package:meta/meta.dart';
 
 import '../core.dart';
 
-export 'package:firebase_dart/src/auth/utils.dart' show Platform;
+export 'package:firebase_dart/src/auth/utils.dart'
+    show
+        Platform,
+        AndroidPlatform,
+        IOsPlatform,
+        LinuxPlatform,
+        MacOsPlatform,
+        WindowsPlatform,
+        WebPlatform;
 export 'package:firebase_dart/src/auth/authhandlers.dart'
-    show FirebaseAppAuthHandler;
+    show FirebaseAppAuthHandler, BaseApplicationVerifier;
 export 'package:firebase_dart/src/auth/app_verifier.dart'
     show ApplicationVerificationResult;
 export 'package:firebase_dart/src/auth/sms_retriever.dart' show SmsRetriever;
@@ -66,7 +74,8 @@ class FirebaseDart {
 
     setupPureDartImplementation(
       authHandler: authHandler ?? DefaultAuthHandler(),
-      applicationVerifier: applicationVerifier ?? RecaptchaVerifier(),
+      applicationVerifier:
+          applicationVerifier ?? RecaptchaApplicationVerifier(),
       smsRetriever: smsRetriever ?? DummySmsRetriever(),
       launchUrl: launchUrl ?? _defaultLaunchUrl,
       platform: platform,
@@ -77,8 +86,11 @@ class FirebaseDart {
   }
 
   static void _defaultLaunchUrl(Uri uri, {bool popup = false}) {
-    if (_kIsWeb) webLaunchUrl(uri, popup: popup);
-    throw UnsupportedError('Social sign in not supported on this platform.');
+    if (_kIsWeb) { 
+      webLaunchUrl(uri, popup: popup);
+    } else {
+      throw UnsupportedError('Social sign in not supported on this platform.');
+    }
   }
 
   static late final Uri baseUrl;

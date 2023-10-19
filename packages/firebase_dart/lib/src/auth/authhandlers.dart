@@ -3,14 +3,15 @@ import 'dart:math';
 
 import 'package:firebase_dart/implementation/pure_dart.dart';
 import 'package:firebase_dart/src/auth/app_verifier.dart';
-import 'package:firebase_dart/src/auth/utils.dart';
 import 'package:firebase_dart/src/core.dart';
 import 'package:firebase_dart/src/core/impl/persistence.dart';
+import 'package:firebase_dart/src/implementation/isolate/auth.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../auth.dart';
 import '../implementation.dart';
+import 'impl/auth.dart';
 
 class FirebaseAppAuthCredential extends AuthCredential {
   final String sessionId;
@@ -23,8 +24,7 @@ class FirebaseAppAuthCredential extends AuthCredential {
   }) : super(providerId: providerId, signInMethod: providerId);
 }
 
-abstract class FirebaseAppAuthHandler extends BaseRecaptchaVerifier
-    implements AuthHandler {
+abstract class FirebaseAppAuthHandler implements AuthHandler {
   const FirebaseAppAuthHandler();
   Future<FirebaseAppAuthCredential> createCredential(
       {String? eventId,
@@ -145,10 +145,45 @@ abstract class FirebaseAppAuthHandler extends BaseRecaptchaVerifier
 
   @override
   Future<void> signOut(FirebaseApp app, User user) async {}
+}
 
+abstract class BaseApplicationVerifier implements ApplicationVerifier {
   @override
-  Future<String> verifyWithRecaptcha(FirebaseAuth auth) async {
-    var url = createAuthHandlerUrl(
+  Future<ApplicationVerificationResult> verify(
+      FirebaseAuth auth, String nonce) async {
+    var p = Platform.current;
+    if (p is IOsPlatform || p is MacOsPlatform) {
+      var v = await verifyWithApns(auth);
+      if (v != null) return ApplicationVerificationResult.apns(v);
+    } else if (p is AndroidPlatform) {
+      var v = await verifyWithSafetyNet(auth, nonce);
+      if (v != null) return ApplicationVerificationResult.safetyNet(v);
+    }
+
+    var v = await verifyWithRecaptcha(auth);
+    return ApplicationVerificationResult.recaptcha(v);
+  }
+
+  @visibleForOverriding
+  Future<String> getVerifyResult(FirebaseApp app);
+
+  @protected
+  Future<Duration> verifyIosClient(FirebaseAuth auth,
+      {required String appToken, required bool isSandbox}) async {
+    if (auth is FirebaseAuthImpl) {
+      return auth.rpcHandler
+          .verifyIosClient(appToken: appToken, isSandbox: isSandbox);
+    } else if (auth is IsolateFirebaseAuth) {
+      return auth.invoke(
+          #verifyIosClient, [], {#appToken: appToken, #isSandbox: isSandbox});
+    }
+    throw UnimplementedError();
+  }
+
+  Future<String?> verifyWithApns(FirebaseAuth auth);
+  Future<String?> verifyWithSafetyNet(FirebaseAuth auth, String nonce);
+  Future<String> verifyWithRecaptcha(FirebaseAuth auth) {
+    var url = FirebaseAppAuthHandler.createAuthHandlerUrl(
       app: auth.app,
       authType: 'verifyApp',
     );
@@ -159,7 +194,4 @@ abstract class FirebaseAppAuthHandler extends BaseRecaptchaVerifier
 
     return getVerifyResult(auth.app);
   }
-
-  @visibleForOverriding
-  Future<String> getVerifyResult(FirebaseApp app);
 }

@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'package:firebase_dart/core.dart';
 import 'package:firebase_dart/implementation/pure_dart.dart';
+import 'package:firebase_dart/src/auth/auth_mixin.dart';
 import 'package:firebase_dart/src/auth/authhandlers.dart';
 import 'package:firebase_dart/src/auth/rpc/http_util.dart';
 import 'package:firebase_dart/src/core/impl/app.dart';
@@ -17,11 +18,10 @@ import '../auth.dart';
 import '../multi_factor.dart';
 import '../rpc/rpc_handler.dart';
 import '../usermanager.dart';
-import '../utils.dart';
 import 'user.dart';
 
 /// The entry point of the Firebase Authentication SDK.
-class FirebaseAuthImpl extends FirebaseService implements FirebaseAuth {
+class FirebaseAuthImpl extends FirebaseService with FirebaseAuthMixin {
   late final RpcHandler rpcHandler =
       RpcHandler(app.options.apiKey, httpClient: httpClient);
 
@@ -36,12 +36,14 @@ class FirebaseAuthImpl extends FirebaseService implements FirebaseAuth {
 
   final MetadataClient httpClient;
 
+  late StreamSubscription _userChangedSubscription;
+
   FirebaseAuthImpl(FirebaseApp app, {Client? httpClient})
       : httpClient = MetadataClient(httpClient ?? Client(),
             firebaseAppId: app.options.appId),
         super(app) {
     _onReady = _init();
-    getRedirectResult();
+    getRedirectResult().timeout(Duration(seconds: 5)).ignore();
   }
 
   Future<void> _init() async {
@@ -55,6 +57,10 @@ class FirebaseAuthImpl extends FirebaseService implements FirebaseAuth {
         user?.initializeProactiveRefresh();
         _currentUser.add(user);
       }
+    });
+
+    _userChangedSubscription = userChanges().listen((v) {
+      userStorageManager.setCurrentUser(v);
     });
   }
 
@@ -329,13 +335,16 @@ class FirebaseAuthImpl extends FirebaseService implements FirebaseAuth {
     Duration timeout = const Duration(seconds: 30),
     int? forceResendingToken,
     MultiFactorSession? multiFactorSession,
+    RecaptchaVerifier? verifier,
   }) async {
     var impl =
         FirebaseImplementation.installation as PureDartFirebaseImplementation;
     var appSignatureHash = await impl.smsRetriever.getAppSignatureHash();
 
-    var assertion =
-        await impl.applicationVerifier.verify(this, phoneNumber ?? '');
+    var assertion = await (verifier
+            ?.verify()
+            .then((v) => ApplicationVerificationResult(verifier.type, v)) ??
+        impl.applicationVerifier.verify(this, phoneNumber ?? ''));
     var smsFuture = impl.smsRetriever.retrieveSms();
 
     String verificationId;
@@ -350,6 +359,11 @@ class FirebaseAuthImpl extends FirebaseService implements FirebaseAuth {
               assertion.type == 'recaptcha' ? assertion.token : null,
           safetyNetToken:
               assertion.type == 'safetynet' ? assertion.token : null,
+          iosReceipt: assertion.type == 'apns'
+              ? assertion.token.split(':').first
+              : null,
+          iosSecret:
+              assertion.type == 'apns' ? assertion.token.split(':').last : null,
         );
       } else {
         verificationId = await rpcHandler.startMultiFactorSignIn(
@@ -360,6 +374,11 @@ class FirebaseAuthImpl extends FirebaseService implements FirebaseAuth {
               assertion.type == 'recaptcha' ? assertion.token : null,
           safetyNetToken:
               assertion.type == 'safetynet' ? assertion.token : null,
+          iosReceipt: assertion.type == 'apns'
+              ? assertion.token.split(':').first
+              : null,
+          iosSecret:
+              assertion.type == 'apns' ? assertion.token.split(':').last : null,
         );
       }
     } else {
@@ -368,6 +387,10 @@ class FirebaseAuthImpl extends FirebaseService implements FirebaseAuth {
         appSignatureHash: appSignatureHash,
         recaptchaToken: assertion.type == 'recaptcha' ? assertion.token : null,
         safetyNetToken: assertion.type == 'safetynet' ? assertion.token : null,
+        iosReceipt:
+            assertion.type == 'apns' ? assertion.token.split(':').first : null,
+        iosSecret:
+            assertion.type == 'apns' ? assertion.token.split(':').last : null,
       );
     }
 
@@ -551,6 +574,7 @@ class FirebaseAuthImpl extends FirebaseService implements FirebaseAuth {
     currentUser?.destroy();
     await userStorageManager.close();
     await _storageManagerUserChangedSubscription.cancel();
+    await _userChangedSubscription.cancel();
     await _currentUser.close();
     await super.delete();
   }
