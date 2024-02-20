@@ -1001,6 +1001,24 @@ void testsWith(Map<String, dynamic> secrets, {required bool isolated}) {
 
       await Future.wait(futures);
     });
+
+    test('Bug: Should not set result to null when failed', () async {
+      await ref.set(null);
+      var f = [
+        for (var i = 0; i < 3; i++)
+          ref.runTransaction((v) async {
+            if (v.value != null) {
+              throw Exception('error');
+            }
+            return v..value = ServerValue.timestamp;
+          })
+      ];
+
+      var t = await Future.wait(f);
+
+      expect(t.first.committed, isTrue);
+      expect(t.skip(1).any((v) => v.committed), isFalse);
+    });
   });
 
   group('OnDisconnect', () {

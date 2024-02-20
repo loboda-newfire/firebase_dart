@@ -458,8 +458,9 @@ class TransactionsNode extends ModifiableTreeNode<Name, List<Transaction>> {
           // transaction might be aborted while running
           continue;
       }
-      v = v.updateChild(
-          p, t.currentOutputSnapshotResolved ?? TreeStructuredData());
+      if (t.currentOutputSnapshotResolved != null) {
+        v = v.updateChild(p, t.currentOutputSnapshotResolved!);
+      }
     }
     _isRunning = false;
     return true;
