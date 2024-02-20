@@ -1,3 +1,7 @@
+## 1.1.3
+
+ - **FIX**: wrong input data (null) given to transaction when previous transaction failed. ([f4ef0c8f](https://github.com/appsup-dart/firebase_dart/commit/f4ef0c8f62d9bff10ee9ea573c6742aea57c23cb))
+
 ## 1.1.2
 
  - **FIX**: when doing many listens and unlistens, sometimes a null was returned before the actual value. ([20f72d41](https://github.com/appsup-dart/firebase_dart/commit/20f72d41e2df6b4d2f0af20472d4fc3048577c23))
