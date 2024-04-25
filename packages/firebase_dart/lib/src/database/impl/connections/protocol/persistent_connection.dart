@@ -421,7 +421,7 @@ class PersistentConnectionImpl extends PersistentConnection
   void _removeListen(String path, QueryFilter? query) {
     _listens.removeWhere((element) =>
         element.message.body.path == path &&
-        element.message.body.query == query);
+        (element.message.body.query ?? const QueryFilter()) == query);
   }
 
   void _restoreAuth() {
