@@ -1,3 +1,7 @@
+## 1.1.4
+
+ - **FIX**: memory leak. ([0daf57ae](https://github.com/appsup-dart/firebase_dart/commit/0daf57aed5485685599c9aa67514ae1df5ffc253))
+
 ## 1.1.3
 
  - **FIX**: wrong input data (null) given to transaction when previous transaction failed. ([f4ef0c8f](https://github.com/appsup-dart/firebase_dart/commit/f4ef0c8f62d9bff10ee9ea573c6742aea57c23cb))
