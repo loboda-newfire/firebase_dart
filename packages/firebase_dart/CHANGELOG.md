@@ -1,3 +1,7 @@
+## 1.1.5
+
+ - **FIX**: replace deprecated SafetyNet with PlayIntegrity for phone number auth. ([b108445c](https://github.com/appsup-dart/firebase_dart/commit/b108445cc8b33641b4ac82566090cf4fa6bd7870))
+
 ## 1.1.4
 
  - **FIX**: memory leak. ([0daf57ae](https://github.com/appsup-dart/firebase_dart/commit/0daf57aed5485685599c9aa67514ae1df5ffc253))
