@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'package:firebase_dart/src/auth/providers/saml.dart';
 import 'package:firebase_dart/src/auth/utils.dart';
 import 'package:firebase_dart/src/util/proxy.dart';
-import 'package:firebaseapis/identitytoolkit/v2.dart' hide IdentityToolkitApi;
+import 'package:firebaseapis/identitytoolkit/v2.dart'
+    hide
+        IdentityToolkitApi,
+        GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http;
 import 'package:openid_client/openid_client.dart' as openid;
@@ -59,7 +62,7 @@ class RpcHandler {
   }
 
   /// reCAPTCHA.
-  Future<String> getRecaptchaParam() async {
+  Future<String> getRecaptchaSiteKey() async {
     var response = await identitytoolkitApi.v1.getRecaptchaParams();
 
     if (response.recaptchaSiteKey == null) {
@@ -67,6 +70,16 @@ class RpcHandler {
     }
 
     return response.recaptchaSiteKey!;
+  }
+
+  Future<String> getProducerProjectNumber() async {
+    var response = await identitytoolkitApi.v1.getRecaptchaParams();
+
+    if (response.producerProjectNumber == null) {
+      throw FirebaseAuthException.internalError();
+    }
+
+    return response.producerProjectNumber!;
   }
 
   /// Gets the list of authorized domains for the specified project.
@@ -689,7 +702,7 @@ class RpcHandler {
     String? phoneNumber,
     String? appSignatureHash,
     String? recaptchaToken,
-    String? safetyNetToken,
+    String? playIntegrityToken,
     String? iosReceipt,
     String? iosSecret,
   }) async {
@@ -698,7 +711,7 @@ class RpcHandler {
 
     if (phoneNumber == null ||
         (recaptchaToken == null &&
-            safetyNetToken == null &&
+            playIntegrityToken == null &&
             (iosReceipt == null || iosSecret == null))) {
       throw FirebaseAuthException.internalError();
     }
@@ -710,7 +723,7 @@ class RpcHandler {
           : (GoogleCloudIdentitytoolkitV1AutoRetrievalInfo()
             ..appSignatureHash = appSignatureHash)
       ..recaptchaToken = recaptchaToken
-      ..safetyNetToken = safetyNetToken
+      ..playIntegrityToken = playIntegrityToken
       ..iosReceipt = iosReceipt
       ..iosSecret = iosSecret;
 
@@ -817,11 +830,11 @@ class RpcHandler {
       String? phoneNumber,
       String? appSignatureHash,
       String? recaptchaToken,
-      String? safetyNetToken,
+      String? playIntegrityToken,
       String? iosReceipt,
       String? iosSecret}) async {
     if (phoneNumber == null ||
-        (recaptchaToken == null && safetyNetToken == null)) {
+        (recaptchaToken == null && playIntegrityToken == null)) {
       throw FirebaseAuthException.internalError();
     }
     var info = GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo()
@@ -831,7 +844,7 @@ class RpcHandler {
           : (GoogleCloudIdentitytoolkitV2AutoRetrievalInfo()
             ..appSignatureHash = appSignatureHash)
       ..recaptchaToken = recaptchaToken
-      ..safetyNetToken = safetyNetToken
+      ..playIntegrityToken = playIntegrityToken
       ..iosReceipt = iosReceipt
       ..iosSecret = iosSecret;
 
@@ -897,7 +910,7 @@ class RpcHandler {
       required String mfaEnrollmentId,
       String? appSignatureHash,
       String? recaptchaToken,
-      String? safetyNetToken,
+      String? playIntegrityToken,
       String? iosReceipt,
       String? iosSecret}) async {
     var info = GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo()
@@ -906,7 +919,7 @@ class RpcHandler {
           : (GoogleCloudIdentitytoolkitV2AutoRetrievalInfo()
             ..appSignatureHash = appSignatureHash)
       ..recaptchaToken = recaptchaToken
-      ..safetyNetToken = safetyNetToken
+      ..playIntegrityToken = playIntegrityToken
       ..iosReceipt = iosReceipt
       ..iosSecret = iosSecret;
 

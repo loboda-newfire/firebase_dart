@@ -636,6 +636,8 @@ class FirebaseAuthFunctionCall<T> extends BaseFunctionCall<T> {
         };
       case #verifyIosClient:
         return (auth as FirebaseAuthImpl).rpcHandler.verifyIosClient;
+      case #getProducerProjectNumber:
+        return (auth as FirebaseAuthImpl).rpcHandler.getProducerProjectNumber;
       case #userChanges:
         return () =>
             auth.userChanges().map<Map<String, dynamic>?>((v) => v?.toJson());

@@ -35,11 +35,13 @@ import com.google.android.gms.common.api.Status;
 import com.google.android.gms.common.api.CommonStatusCodes;
 import com.google.android.gms.auth.api.phone.SmsRetriever;
 import com.google.android.gms.auth.api.phone.SmsRetrieverClient;
-import com.google.android.gms.safetynet.SafetyNetApi;
-import com.google.android.gms.safetynet.SafetyNet;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+
+import com.google.android.play.core.integrity.IntegrityManagerFactory;
+import com.google.android.play.core.integrity.IntegrityTokenRequest;
+import com.google.android.play.core.integrity.IntegrityTokenResponse;
 
 /** FirebaseDartFlutterPlugin */
 public class FirebaseDartFlutterPlugin implements FlutterPlugin, MethodCallHandler {
@@ -115,28 +117,27 @@ public class FirebaseDartFlutterPlugin implements FlutterPlugin, MethodCallHandl
             int v = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(binding.getApplicationContext(), 12451000);
             result.success(v == ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED || v == ConnectionResult.SUCCESS);
             break;
-        case "getSafetyNetToken":
-            try {
-                String nonce = call.argument("nonce");
-                SafetyNet.getClient(binding.getApplicationContext()).attest(
-                    nonce.getBytes("UTF-8"), 
-                    call.argument​("apiKey"))
-                    .addOnSuccessListener(new OnSuccessListener<SafetyNetApi.AttestationResponse>() {
-                        @Override
-                        public void onSuccess(SafetyNetApi.AttestationResponse response) {
-                            String jws = response.getJwsResult();
-                            result.success(jws);
-                        }
-                    })
-                    .addOnFailureListener(new OnFailureListener() {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
-                            result.error("Could not get SafetyNet token", e.getMessage(), null);
-                        }
-                    });
-            } catch (UnsupportedEncodingException e) {
-                result.error("Could not get SafetyNet token", e.getMessage(), null);
-            } 
+        case "requestIntegrityToken":
+            String nonce = call.argument("nonce");
+            String projectNumber = call.argument("projectNumber");
+            IntegrityManagerFactory.create(binding.getApplicationContext())
+                .requestIntegrityToken(
+                    IntegrityTokenRequest.builder()
+                        .setCloudProjectNumber(Long.parseLong(projectNumber))
+                        .setNonce(nonce)
+                        .build())
+                .addOnSuccessListener(new OnSuccessListener<IntegrityTokenResponse>() {
+                    @Override
+                    public void onSuccess(IntegrityTokenResponse response) {
+                        result.success(response.token());
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        result.error("Could not get PlayIntegrity token", e.getMessage(), null);
+                    }
+                });
             break;
         case "getAppSignatureHash": 
             try {

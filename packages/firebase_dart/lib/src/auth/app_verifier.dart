@@ -1,7 +1,8 @@
 import 'auth.dart';
 
 abstract class ApplicationVerifier {
-  Future<ApplicationVerificationResult> verify(FirebaseAuth auth, String nonce);
+  Future<ApplicationVerificationResult> verify(FirebaseAuth auth, String nonce,
+      {bool forceRecaptcha = false});
 }
 
 class ApplicationVerificationResult {
@@ -13,8 +14,8 @@ class ApplicationVerificationResult {
   ApplicationVerificationResult.apns(String token) : this('apns', token);
   ApplicationVerificationResult.recaptcha(String token)
       : this('recaptcha', token);
-  ApplicationVerificationResult.safetyNet(String token)
-      : this('safetynet', token);
+  ApplicationVerificationResult.playItegrity(String token)
+      : this('playintegrity', token);
 
   @override
   String toString() {
@@ -26,8 +27,8 @@ class RecaptchaApplicationVerifier implements ApplicationVerifier {
   const RecaptchaApplicationVerifier();
 
   @override
-  Future<ApplicationVerificationResult> verify(
-      FirebaseAuth auth, String nonce) async {
+  Future<ApplicationVerificationResult> verify(FirebaseAuth auth, String nonce,
+      {bool forceRecaptcha = false}) async {
     var verifier = RecaptchaVerifier(auth: auth);
 
     return ApplicationVerificationResult.recaptcha(await verifier.verify());
@@ -36,8 +37,8 @@ class RecaptchaApplicationVerifier implements ApplicationVerifier {
 
 class DummyApplicationVerifier implements ApplicationVerifier {
   @override
-  Future<ApplicationVerificationResult> verify(
-      FirebaseAuth auth, String nonce) async {
+  Future<ApplicationVerificationResult> verify(FirebaseAuth auth, String nonce,
+      {bool forceRecaptcha = false}) async {
     return ApplicationVerificationResult.recaptcha(
         'this_will_only_work_on_testing');
   }

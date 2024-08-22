@@ -341,39 +341,55 @@ class FirebaseAuthImpl extends FirebaseService with FirebaseAuthMixin {
         FirebaseImplementation.installation as PureDartFirebaseImplementation;
     var appSignatureHash = await impl.smsRetriever.getAppSignatureHash();
 
-    var assertion = await (verifier
-            ?.verify()
-            .then((v) => ApplicationVerificationResult(verifier.type, v)) ??
-        impl.applicationVerifier.verify(this, phoneNumber ?? ''));
     var smsFuture = impl.smsRetriever.retrieveSms();
 
     String verificationId;
-    if (multiFactorSession != null) {
-      if ((multiFactorSession as MultiFactorSessionImpl).type ==
-          MultiFactorSessionType.enrollment) {
-        verificationId = await rpcHandler.startMultiFactorEnrollment(
-          idToken: multiFactorSession.credential,
+
+    Future<String> requestVerificationId(
+        ApplicationVerificationResult assertion) async {
+      if (multiFactorSession != null) {
+        if ((multiFactorSession as MultiFactorSessionImpl).type ==
+            MultiFactorSessionType.enrollment) {
+          return await rpcHandler.startMultiFactorEnrollment(
+            idToken: multiFactorSession.credential,
+            phoneNumber: phoneNumber,
+            appSignatureHash: appSignatureHash,
+            recaptchaToken:
+                assertion.type == 'recaptcha' ? assertion.token : null,
+            playIntegrityToken:
+                assertion.type == 'playintegrity' ? assertion.token : null,
+            iosReceipt: assertion.type == 'apns'
+                ? assertion.token.split(':').first
+                : null,
+            iosSecret: assertion.type == 'apns'
+                ? assertion.token.split(':').last
+                : null,
+          );
+        } else {
+          return await rpcHandler.startMultiFactorSignIn(
+            mfaPendingCredential: multiFactorSession.credential,
+            mfaEnrollmentId: multiFactorInfo!.uid,
+            appSignatureHash: appSignatureHash,
+            recaptchaToken:
+                assertion.type == 'recaptcha' ? assertion.token : null,
+            playIntegrityToken:
+                assertion.type == 'playintegrity' ? assertion.token : null,
+            iosReceipt: assertion.type == 'apns'
+                ? assertion.token.split(':').first
+                : null,
+            iosSecret: assertion.type == 'apns'
+                ? assertion.token.split(':').last
+                : null,
+          );
+        }
+      } else {
+        return await rpcHandler.sendVerificationCode(
           phoneNumber: phoneNumber,
           appSignatureHash: appSignatureHash,
           recaptchaToken:
               assertion.type == 'recaptcha' ? assertion.token : null,
-          safetyNetToken:
-              assertion.type == 'safetynet' ? assertion.token : null,
-          iosReceipt: assertion.type == 'apns'
-              ? assertion.token.split(':').first
-              : null,
-          iosSecret:
-              assertion.type == 'apns' ? assertion.token.split(':').last : null,
-        );
-      } else {
-        verificationId = await rpcHandler.startMultiFactorSignIn(
-          mfaPendingCredential: multiFactorSession.credential,
-          mfaEnrollmentId: multiFactorInfo!.uid,
-          appSignatureHash: appSignatureHash,
-          recaptchaToken:
-              assertion.type == 'recaptcha' ? assertion.token : null,
-          safetyNetToken:
-              assertion.type == 'safetynet' ? assertion.token : null,
+          playIntegrityToken:
+              assertion.type == 'playintegrity' ? assertion.token : null,
           iosReceipt: assertion.type == 'apns'
               ? assertion.token.split(':').first
               : null,
@@ -381,17 +397,21 @@ class FirebaseAuthImpl extends FirebaseService with FirebaseAuthMixin {
               assertion.type == 'apns' ? assertion.token.split(':').last : null,
         );
       }
-    } else {
-      verificationId = await rpcHandler.sendVerificationCode(
-        phoneNumber: phoneNumber,
-        appSignatureHash: appSignatureHash,
-        recaptchaToken: assertion.type == 'recaptcha' ? assertion.token : null,
-        safetyNetToken: assertion.type == 'safetynet' ? assertion.token : null,
-        iosReceipt:
-            assertion.type == 'apns' ? assertion.token.split(':').first : null,
-        iosSecret:
-            assertion.type == 'apns' ? assertion.token.split(':').last : null,
-      );
+    }
+
+    try {
+      var assertion = await (verifier
+              ?.verify()
+              .then((v) => ApplicationVerificationResult(verifier.type, v)) ??
+          impl.applicationVerifier
+              .verify(this, phoneNumber ?? multiFactorInfo?.phoneNumber ?? ''));
+
+      verificationId = await requestVerificationId(assertion);
+    } catch (e) {
+      var assertion = await impl.applicationVerifier.verify(
+          this, phoneNumber ?? multiFactorInfo?.phoneNumber ?? '',
+          forceRecaptcha: true);
+      verificationId = await requestVerificationId(assertion);
     }
 
     codeSent(verificationId, 0 /*TODO*/);
