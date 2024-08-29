@@ -803,6 +803,9 @@ void testsWith(Map<String, dynamic> secrets, {required bool isolated}) {
       await ref.child('users').child('facebook:12345').set({'name': 'me'});
 
       expect(await ref.child('users/facebook:12345/name').get(), 'me');
+
+      expect(
+          (await ref.child('users').get())['facebook:12345'], {'name': 'me'});
     });
 
     test('spaces', () async {
@@ -816,6 +819,24 @@ void testsWith(Map<String, dynamic> secrets, {required bool isolated}) {
       expect(await ref.child('users').get(), {
         'Jane Doe': {'name': 'Jane'}
       });
+    });
+
+    test('escaped characters', () async {
+      await ref.child('users').set(null);
+      await ref
+          .child('users')
+          .child(Uri.encodeComponent('Jane/Doe'))
+          .set({'name': 'Jane'});
+
+      expect((await ref.child('users').get())[Uri.encodeComponent('Jane/Doe')],
+          {'name': 'Jane'});
+      expect(
+          await ref
+              .child('users')
+              .child(Uri.encodeComponent('Jane/Doe'))
+              .child('name')
+              .get(),
+          'Jane');
     });
   });
 

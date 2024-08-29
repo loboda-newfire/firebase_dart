@@ -384,8 +384,8 @@ class ReferenceImpl extends QueryImpl with DatabaseReference {
   }
 
   @override
-  DatabaseReference child(String c) => ReferenceImpl(
-      db, [..._pathSegments, ...c.split('/').map(Uri.decodeComponent)]);
+  DatabaseReference child(String c) =>
+      ReferenceImpl(db, [..._pathSegments, ...c.split('/')]);
 
   @override
   DatabaseReference? parent() => _pathSegments.isEmpty

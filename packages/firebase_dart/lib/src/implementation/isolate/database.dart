@@ -269,7 +269,7 @@ class IsolateQuery extends Query {
   final String path;
 
   IsolateQuery(this.database, this.pathSegments, this.filter)
-      : path = pathSegments.map(Uri.encodeComponent).join('/');
+      : path = pathSegments.join('/');
 
   Future<T> invoke<T>(Symbol method,
       [List<dynamic>? positionalArguments,
@@ -425,8 +425,8 @@ class IsolateDatabaseReference extends IsolateQuery with DatabaseReference {
   }
 
   @override
-  DatabaseReference child(String c) => IsolateDatabaseReference(
-      database, [...pathSegments, ...c.split('/').map(Uri.decodeComponent)]);
+  DatabaseReference child(String c) =>
+      IsolateDatabaseReference(database, [...pathSegments, ...c.split('/')]);
 
   @override
   OnDisconnect onDisconnect() => _onDisconnect;
