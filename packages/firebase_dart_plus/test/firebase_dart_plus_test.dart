@@ -44,6 +44,31 @@ void main() {
       expect(await db.reference().child('test').get(), 'test');
     });
 
+    test('Should handle special characters in paths', () async {
+      var batch = db.batch();
+
+      await batch.reference().child('test/x:1').set('test');
+      await batch.reference().child('test/x@2').set('test');
+      await batch.reference().child('test/x%2F3').set('test');
+
+      expect(await batch.reference().get(), {
+        'test': {
+          'x:1': 'test',
+          'x@2': 'test',
+          'x%2F3': 'test',
+        }
+      });
+      expect(await db.reference().child('test').get(), isNull);
+
+      await batch.commit();
+
+      expect(await db.reference().child('test').get(), {
+        'x:1': 'test',
+        'x@2': 'test',
+        'x%2F3': 'test',
+      });
+    });
+
     test('Should write multiple operations', () async {
       var batch = db.batch();
 
