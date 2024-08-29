@@ -64,11 +64,11 @@ class Transaction implements Comparable<Transaction> {
   void _onValue(Event _) {}
 
   void _watch() {
-    repo.listen(path.join('/'), null, 'value', _onValue);
+    repo.listen(path, null, 'value', _onValue);
   }
 
   void _unwatch() {
-    repo.unlisten(path.join('/'), null, 'value', _onValue);
+    repo.unlisten(path, null, 'value', _onValue);
   }
 
   /// Run the transaction and apply the result to the sync tree if

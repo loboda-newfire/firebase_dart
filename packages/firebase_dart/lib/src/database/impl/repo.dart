@@ -20,6 +20,7 @@ import 'events/cancel.dart';
 import 'events/child.dart';
 import 'events/value.dart';
 import 'firebase_impl.dart' as firebase;
+import 'firebase_impl.dart';
 import 'operations/tree.dart';
 import 'synctree.dart';
 import 'tree.dart';
@@ -178,33 +179,27 @@ class Repo {
   /// Returns a future that completes on success, or fails otherwise.
   Future<void> unauth() => _connection.refreshAuthToken(null);
 
-  String _preparePath(String path) =>
-      path.split('/').map(Uri.decodeComponent).join('/');
-
   /// Writes data [value] to the location [path] and sets the [priority].
   ///
   /// Returns a future that completes when the data has been written to the
   /// server and fails when data could not be written.
   Future<void> setWithPriority(
-      String path, dynamic value, dynamic priority) async {
+      Path<Name> path, dynamic value, dynamic priority) async {
     // possibly the user starts this write in response of an auth event
     // so, wait until all microtasks are processed to make sure that the
     // database also received the auth event
     await Future.microtask(() => null);
 
-    path = _preparePath(path);
     var newValue = TreeStructuredData.fromJson(value, priority);
     var writeId = _nextWriteId++;
-    _syncTree.applyUserOverwrite(Name.parsePath(path),
+    _syncTree.applyUserOverwrite(path,
         ServerValueX.resolve(newValue, _connection.serverValues), writeId);
-    _transactions.abort(
-        Name.parsePath(path), FirebaseDatabaseException.overriddenBySet());
+    _transactions.abort(path, FirebaseDatabaseException.overriddenBySet());
     try {
-      await _connection.put(path, newValue.toJson(true));
-      await Future.microtask(
-          () => _syncTree.applyAck(Name.parsePath(path), writeId, true));
+      await _connection.put(path.asString(), newValue.toJson(true));
+      await Future.microtask(() => _syncTree.applyAck(path, writeId, true));
     } on FirebaseDatabaseException {
-      _syncTree.applyAck(Name.parsePath(path), writeId, false);
+      _syncTree.applyAck(path, writeId, false);
       rethrow;
     }
   }
@@ -213,27 +208,25 @@ class Repo {
   ///
   /// Returns a future that completes when the data has been written to the
   /// server and fails when data could not be written.
-  Future<void> update(String path, Map<String, dynamic> value) async {
+  Future<void> update(Path<Name> path, Map<String, dynamic> value) async {
     // possibly the user starts this write in response of an auth event
     // so, wait until all microtasks are processed to make sure that the
     // database also received the auth event
     await Future.microtask(() => null);
 
     if (value.isNotEmpty) {
-      path = _preparePath(path);
       var serverValues = _connection.serverValues;
       var changedChildren = Map<Path<Name>, TreeStructuredData>.fromIterables(
           value.keys.map<Path<Name>>((c) => Name.parsePath(c)),
           value.values.map<TreeStructuredData>((v) => ServerValueX.resolve(
               TreeStructuredData.fromJson(v, null), serverValues)));
       var writeId = _nextWriteId++;
-      _syncTree.applyUserMerge(Name.parsePath(path), changedChildren, writeId);
+      _syncTree.applyUserMerge(path, changedChildren, writeId);
       try {
-        await _connection.merge(path, value);
-        await Future.microtask(
-            () => _syncTree.applyAck(Name.parsePath(path), writeId, true));
+        await _connection.merge(path.asString(), value);
+        await Future.microtask(() => _syncTree.applyAck(path, writeId, true));
       } on firebase.FirebaseDatabaseException {
-        _syncTree.applyAck(Name.parsePath(path), writeId, false);
+        _syncTree.applyAck(path, writeId, false);
       }
     }
   }
@@ -247,8 +240,8 @@ class Repo {
   ///
   /// Returns a future that completes when the listener has been successfully
   /// registered at the server.
-  Future<void> listen(
-      String path, QueryFilter? filter, String type, EventListener cb) async {
+  Future<void> listen(Path<Name> path, QueryFilter? filter, String type,
+      EventListener cb) async {
     // possibly the user started listening in response of an auth event
     // so, wait until all microtasks are processed to make sure that the
     // database also received the auth event
@@ -256,15 +249,11 @@ class Repo {
 
     if (_isClosed) return; // might have been closed in the mean time
 
-    path = _preparePath(path);
-
-    var p = Name.parsePath(path);
-    if (p.isNotEmpty && p.first.asString() == dotInfo) {
+    if (path.isNotEmpty && path.first.asString() == dotInfo) {
       await _infoSyncTree.addEventListener(
-          type, Name.parsePath(path), filter ?? QueryFilter(), cb);
+          type, path, filter ?? QueryFilter(), cb);
     } else {
-      await _syncTree.addEventListener(
-          type, Name.parsePath(path), filter ?? QueryFilter(), cb);
+      await _syncTree.addEventListener(type, path, filter ?? QueryFilter(), cb);
     }
   }
 
@@ -275,21 +264,17 @@ class Repo {
   /// Returns a future that completes when the listener has been successfully
   /// unregistered at the server.
   void unlisten(
-      String path, QueryFilter? filter, String type, EventListener cb) {
+      Path<Name> path, QueryFilter? filter, String type, EventListener cb) {
     if (_isClosed) return; // might have been closed in the mean time
 
-    path = _preparePath(path);
-
-    var p = Name.parsePath(path);
-    if (p.isNotEmpty && p.first.asString() == dotInfo) {
+    if (path.isNotEmpty && path.first.asString() == dotInfo) {
       _infoSyncTree.removeEventListener(
-          type, Name.parsePath(path), filter ?? QueryFilter(), cb);
+          type, path, filter ?? QueryFilter(), cb);
     } else {
       Timer? self;
       var timer = Timer(Duration(milliseconds: 2000), () {
         _unlistenTimers.remove(self);
-        _syncTree.removeEventListener(
-            type, Name.parsePath(path), filter ?? QueryFilter(), cb);
+        _syncTree.removeEventListener(type, path, filter ?? QueryFilter(), cb);
       });
       self = timer;
       _unlistenTimers.add(timer);
@@ -297,66 +282,65 @@ class Repo {
   }
 
   /// Gets the current cached value at location [path] with [filter].
-  TreeStructuredData? cachedValue(String path, QueryFilter filter) {
-    path = _preparePath(path);
-    var tree = _syncTree.root.subtreeNullable(Name.parsePath(path));
+  TreeStructuredData? cachedValue(Path<Name> path, QueryFilter filter) {
+    var tree = _syncTree.root.subtreeNullable(path);
     if (tree == null) return null;
     return tree.value.valueForFilter(filter);
   }
 
   /// Helper function to create a stream for a particular event type.
   Stream<firebase.Event> createStream(
-      firebase.DatabaseReference ref, QueryFilter filter, String type) {
+      ReferenceImpl ref, QueryFilter filter, String type) {
     return DeferStream(() => StreamFactory(this, ref, filter, type)(),
         reusable: true);
   }
 
   Future<TreeStructuredData?> transaction(
-          String path, TransactionHandler update, bool applyLocally) =>
-      _transactions.startTransaction(
-          Name.parsePath(_preparePath(path)), update, applyLocally);
+          Path<Name> path, TransactionHandler update, bool applyLocally) =>
+      _transactions.startTransaction(path, update, applyLocally);
 
   Future<void> onDisconnectSetWithPriority(
-      String path, dynamic value, dynamic priority) async {
+      Path<Name> path, dynamic value, dynamic priority) async {
     // possibly the user starts this write in response of an auth event
     // so, wait until all microtasks are processed to make sure that the
     // database also received the auth event
     await Future.microtask(() => null);
 
-    path = _preparePath(path);
     var newNode = TreeStructuredData.fromJson(value, priority);
-    await _connection.onDisconnectPut(path, newNode.toJson(true)).then((_) {
-      _onDisconnect.remember(Name.parsePath(path), newNode);
+    await _connection
+        .onDisconnectPut(path.asString(), newNode.toJson(true))
+        .then((_) {
+      _onDisconnect.remember(path, newNode);
     });
   }
 
   Future<void> onDisconnectUpdate(
-      String path, Map<String, dynamic> childrenToMerge) async {
+      Path<Name> path, Map<String, dynamic> childrenToMerge) async {
     // possibly the user starts this write in response of an auth event
     // so, wait until all microtasks are processed to make sure that the
     // database also received the auth event
     await Future.microtask(() => null);
 
-    path = _preparePath(path);
     if (childrenToMerge.isEmpty) return Future.value();
 
-    await _connection.onDisconnectMerge(path, childrenToMerge).then((_) {
+    await _connection
+        .onDisconnectMerge(path.asString(), childrenToMerge)
+        .then((_) {
       childrenToMerge.forEach((childName, child) {
-        _onDisconnect.remember(Name.parsePath(path).child(Name(childName)),
-            TreeStructuredData.fromJson(child));
+        _onDisconnect.remember(
+            path.child(Name(childName)), TreeStructuredData.fromJson(child));
       });
     });
   }
 
-  Future<void> onDisconnectCancel(String path) async {
+  Future<void> onDisconnectCancel(Path<Name> path) async {
     // possibly the user starts this write in response of an auth event
     // so, wait until all microtasks are processed to make sure that the
     // database also received the auth event
     await Future.microtask(() => null);
 
-    path = _preparePath(path);
-    await _connection.onDisconnectCancel(path).then((_) {
-      _onDisconnect.forget(Name.parsePath(path));
+    await _connection.onDisconnectCancel(path.asString()).then((_) {
+      _onDisconnect.forget(path);
     });
   }
 
@@ -386,7 +370,7 @@ class Repo {
 
 class StreamFactory {
   final Repo repo;
-  final firebase.DatabaseReference ref;
+  final ReferenceImpl ref;
   final QueryFilter filter;
   final String type;
 
@@ -443,13 +427,13 @@ class StreamFactory {
   }
 
   void startListen() {
-    repo.listen(ref.path, filter, type, addEvent);
-    repo.listen(ref.path, filter, 'cancel', addError);
+    repo.listen(ref.parsedPath, filter, type, addEvent);
+    repo.listen(ref.parsedPath, filter, 'cancel', addError);
   }
 
   void stopListen() {
-    repo.unlisten(ref.path, filter, type, addEvent);
-    repo.unlisten(ref.path, filter, 'cancel', addError);
+    repo.unlisten(ref.parsedPath, filter, type, addEvent);
+    repo.unlisten(ref.parsedPath, filter, 'cancel', addError);
   }
 
   Stream<firebase.Event> call() {
