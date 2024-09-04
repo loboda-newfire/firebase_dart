@@ -169,15 +169,7 @@ class GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo
     extends v2.GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo {
   String? playIntegrityToken;
 
-  GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo({
-    this.playIntegrityToken,
-    super.autoRetrievalInfo,
-    super.iosReceipt,
-    super.iosSecret,
-    super.phoneNumber,
-    super.recaptchaToken,
-    super.safetyNetToken,
-  });
+  GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo();
 
   @override
   Map<String, dynamic> toJson() => {
@@ -191,16 +183,7 @@ class GoogleCloudIdentitytoolkitV1SendVerificationCodeRequest
     extends id.GoogleCloudIdentitytoolkitV1SendVerificationCodeRequest {
   String? playIntegrityToken;
 
-  GoogleCloudIdentitytoolkitV1SendVerificationCodeRequest({
-    this.playIntegrityToken,
-    super.autoRetrievalInfo,
-    super.iosReceipt,
-    super.iosSecret,
-    super.phoneNumber,
-    super.recaptchaToken,
-    super.safetyNetToken,
-    super.tenantId,
-  });
+  GoogleCloudIdentitytoolkitV1SendVerificationCodeRequest();
 
   @override
   Map<String, dynamic> toJson() => {
