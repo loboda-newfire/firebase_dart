@@ -1,8 +1,11 @@
 import 'package:firebase_dart/auth.dart';
+import 'package:firebase_dart/database.dart';
 import 'package:firebase_dart/src/auth/app_verifier.dart';
 import 'package:firebase_dart/src/auth/iframeclient/auth_methods.dart';
 import 'package:firebase_dart/src/auth/sms_retriever.dart';
 import 'package:firebase_dart/src/auth/utils.dart';
+import 'package:firebase_dart/src/implementation.dart';
+import 'package:firebase_dart/src/implementation/isolate.dart';
 import 'package:firebase_dart/src/implementation/pure_dart_setup_web.dart'
     if (dart.library.io) 'package:firebase_dart/src/implementation/pure_dart_setup_io.dart'
     if (dart.library.html) 'package:firebase_dart/src/implementation/pure_dart_setup_web.dart';
@@ -11,6 +14,10 @@ import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 
 import '../core.dart';
+import '../src/core.dart';
+import '../src/database/impl/firebase_impl.dart';
+import '../src/database/impl/repo.dart';
+import '../src/implementation/isolate/database.dart';
 
 export 'package:firebase_dart/src/auth/utils.dart'
     show
@@ -86,7 +93,7 @@ class FirebaseDart {
   }
 
   static void _defaultLaunchUrl(Uri uri, {bool popup = false}) {
-    if (_kIsWeb) { 
+    if (_kIsWeb) {
       webLaunchUrl(uri, popup: popup);
     } else {
       throw UnsupportedError('Social sign in not supported on this platform.');
@@ -94,6 +101,27 @@ class FirebaseDart {
   }
 
   static late final Uri baseUrl;
+
+  /// Updates global database configurations and optimization settings.
+  ///
+  /// The [keepQueriesSyncedDuration] parameter can be used to specify how long
+  /// queries should be kept in sync. This can be useful to reduce the number of
+  /// queries made to the server. The default value is 2 seconds.
+  static void updateDatabaseConfiguration(
+      {Duration? keepQueriesSyncedDuration}) {
+    Repo.updateDatabaseConfiguration(
+      keepQueriesSyncedDuration: keepQueriesSyncedDuration,
+    );
+    try {
+      var i = FirebaseImplementation.installation;
+      if (i is IsolateFirebaseImplementation) {
+        i.updateDatabaseConfiguration(
+            keepQueriesSyncedDuration: keepQueriesSyncedDuration);
+      }
+    } on FirebaseCoreException {
+      // ignore
+    }
+  }
 }
 
 abstract class AuthHandler {

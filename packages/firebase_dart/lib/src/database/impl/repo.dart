@@ -60,6 +60,8 @@ class Repo {
 
   bool _isClosed = false;
 
+  static DatabaseConfiguration databaseConfiguration = DatabaseConfiguration();
+
   factory Repo(firebase.BaseFirebaseDatabase db) {
     return _repos.putIfAbsent(db, () {
       var url = Uri.parse(db.databaseURL);
@@ -122,6 +124,13 @@ class Repo {
         _syncTree.applyServerOperation(event.operation!, event.query);
       }
     });
+  }
+
+  static void updateDatabaseConfiguration(
+      {Duration? keepQueriesSyncedDuration}) {
+    databaseConfiguration = DatabaseConfiguration(
+        keepQueriesSyncedDuration: keepQueriesSyncedDuration ??
+            databaseConfiguration.keepQueriesSyncedDuration);
   }
 
   SyncTree get syncTree => _syncTree;
@@ -260,9 +269,6 @@ class Repo {
   final List<Timer> _unlistenTimers = [];
 
   /// Unlistens to changes of [type] at location [path] for data matching [filter].
-  ///
-  /// Returns a future that completes when the listener has been successfully
-  /// unregistered at the server.
   void unlisten(
       Path<Name> path, QueryFilter? filter, String type, EventListener cb) {
     if (_isClosed) return; // might have been closed in the mean time
@@ -271,13 +277,21 @@ class Repo {
       _infoSyncTree.removeEventListener(
           type, path, filter ?? QueryFilter(), cb);
     } else {
-      Timer? self;
-      var timer = Timer(Duration(milliseconds: 2000), () {
-        _unlistenTimers.remove(self);
+      void doUnlisten() {
         _syncTree.removeEventListener(type, path, filter ?? QueryFilter(), cb);
-      });
-      self = timer;
-      _unlistenTimers.add(timer);
+      }
+
+      if (databaseConfiguration.keepQueriesSyncedDuration > Duration.zero) {
+        Timer? self;
+        var timer = Timer(databaseConfiguration.keepQueriesSyncedDuration, () {
+          _unlistenTimers.remove(self);
+          doUnlisten();
+        });
+        self = timer;
+        _unlistenTimers.add(timer);
+      } else {
+        doUnlisten();
+      }
     }
   }
 
@@ -366,6 +380,13 @@ class Repo {
             TreeStructuredData.fromJson(value)),
         null);
   }
+}
+
+class DatabaseConfiguration {
+  final Duration keepQueriesSyncedDuration;
+
+  const DatabaseConfiguration(
+      {this.keepQueriesSyncedDuration = const Duration(seconds: 2)});
 }
 
 class StreamFactory {
