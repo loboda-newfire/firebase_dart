@@ -49,7 +49,7 @@ class RecaptchaVerifierImpl implements RecaptchaVerifier {
   @override
   Future<String> verify() async {
     var siteKey =
-        await (auth as FirebaseAuthImpl).rpcHandler.getRecaptchaParam();
+        await (auth as FirebaseAuthImpl).rpcHandler.getRecaptchaSiteKey();
     var html = '''
 <html>
   <head>

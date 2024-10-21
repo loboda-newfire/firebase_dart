@@ -1,3 +1,25 @@
+## 1.1.5
+
+ - **FIX**: replace deprecated SafetyNet with PlayIntegrity for phone number auth. ([b108445c](https://github.com/appsup-dart/firebase_dart/commit/b108445cc8b33641b4ac82566090cf4fa6bd7870))
+
+## 1.1.4
+
+ - **FIX**: memory leak. ([0daf57ae](https://github.com/appsup-dart/firebase_dart/commit/0daf57aed5485685599c9aa67514ae1df5ffc253))
+
+## 1.1.3
+
+ - **FIX**: wrong input data (null) given to transaction when previous transaction failed. ([f4ef0c8f](https://github.com/appsup-dart/firebase_dart/commit/f4ef0c8f62d9bff10ee9ea573c6742aea57c23cb))
+
+## 1.1.2
+
+ - **FIX**: when doing many listens and unlistens, sometimes a null was returned before the actual value. ([20f72d41](https://github.com/appsup-dart/firebase_dart/commit/20f72d41e2df6b4d2f0af20472d4fc3048577c23))
+
+## 1.1.1
+
+ - **FIX**(database): handle when persistent storage corrupt. ([804de4b7](https://github.com/appsup-dart/firebase_dart/commit/804de4b7d627dbdff03fe895cc68d8edacad5608))
+ - **FIX**(database): running transactions throw error when app deleted. ([8e2055e9](https://github.com/appsup-dart/firebase_dart/commit/8e2055e9cd04c671e51422bae3ff68ad560e5101))
+ - **FIX**(database): fix StateError `Should not call rerun when transactions are running`. ([1cfca21f](https://github.com/appsup-dart/firebase_dart/commit/1cfca21f96c20e93b1a895e15582c06b15c5b219))
+
 ## 1.1.0
 
  - **REFACTOR**(firebase_dart): support intl ^0.18.0. ([0daa8dbb](https://github.com/appsup-dart/firebase_dart/commit/0daa8dbbc1688c021b8bebba90e8521ebeaf6dca))

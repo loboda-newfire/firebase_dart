@@ -1,3 +1,23 @@
+## 1.1.5
+
+ - **FIX**: replace deprecated SafetyNet with PlayIntegrity for phone number auth. ([b108445c](https://github.com/appsup-dart/firebase_dart/commit/b108445cc8b33641b4ac82566090cf4fa6bd7870))
+
+## 1.1.4
+
+ - Update a dependency to the latest release.
+
+## 1.1.3
+
+ - Update a dependency to the latest release.
+
+## 1.1.2
+
+ - Update a dependency to the latest release.
+
+## 1.1.1
+
+ - **FIX**(auth): "Error receiving broadcast Intent". ([c8411ecf](https://github.com/appsup-dart/firebase_dart/commit/c8411ecfadda60b07049caf138b1fa34b3e37c95))
+
 ## 1.1.0
 
  - Update a dependency to the latest release.

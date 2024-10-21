@@ -154,6 +154,24 @@ void runDatabaseTests({bool isolated = false}) {
           }
         });
       });
+
+      test('FirebaseDatabase.delete should stop running transactions',
+          () async {
+        var app = await core.Firebase.initializeApp(
+            name: 'my_app', options: getOptions());
+
+        var db = FirebaseDatabase(app: app, databaseURL: testUrl);
+        var ref = db.reference().child('test/some-key');
+
+        ref.runTransaction((mutableData) async {
+          await Future.delayed(Duration(milliseconds: 100));
+          return mutableData;
+        }).ignore();
+
+        await app.delete();
+
+        await Future.delayed(Duration(milliseconds: 200));
+      });
     }
 
     test(
@@ -785,6 +803,9 @@ void testsWith(Map<String, dynamic> secrets, {required bool isolated}) {
       await ref.child('users').child('facebook:12345').set({'name': 'me'});
 
       expect(await ref.child('users/facebook:12345/name').get(), 'me');
+
+      expect(
+          (await ref.child('users').get())['facebook:12345'], {'name': 'me'});
     });
 
     test('spaces', () async {
@@ -798,6 +819,24 @@ void testsWith(Map<String, dynamic> secrets, {required bool isolated}) {
       expect(await ref.child('users').get(), {
         'Jane Doe': {'name': 'Jane'}
       });
+    });
+
+    test('escaped characters', () async {
+      await ref.child('users').set(null);
+      await ref
+          .child('users')
+          .child(Uri.encodeComponent('Jane/Doe'))
+          .set({'name': 'Jane'});
+
+      expect((await ref.child('users').get())[Uri.encodeComponent('Jane/Doe')],
+          {'name': 'Jane'});
+      expect(
+          await ref
+              .child('users')
+              .child(Uri.encodeComponent('Jane/Doe'))
+              .child('name')
+              .get(),
+          'Jane');
     });
   });
 
@@ -949,6 +988,57 @@ void testsWith(Map<String, dynamic> secrets, {required bool isolated}) {
       await wait(400);
 
       expect(await ref.child('object/count').get(), 10);
+    });
+
+    test('Bug: Should not call rerun when transactions are running', () async {
+      await ref.child('object/count').set(0);
+      var futures = <Future>[];
+
+      futures.add(ref.child('object/count').runTransaction((v) async {
+        await wait(100);
+        return v..value = (v.value ?? 0) + 1;
+      }));
+      futures.add(ref.child('object/count').runTransaction((v) async {
+        await wait(100);
+        return v..value = (v.value ?? 0) + 1;
+      }));
+      futures.add(ref.child('object').runTransaction((v) async {
+        v.value ??= {};
+        v.value.putIfAbsent('count', () => 0);
+        v.value['count']++;
+        return v;
+      }));
+
+      // the previous transactions will be triggered from the path `object`
+
+      await Future.delayed(Duration(milliseconds: 100));
+
+      // the following transaction will cancel the transactions at path `object` and will trigger a rerun from the path `object/test`
+      // this should not start if the previous transactions are still running
+      futures.add(ref.child('object/test').set('hello'));
+      futures.add(ref.child('object/test2').runTransaction((v) async {
+        return v..value = (v.value ?? 0) + 1;
+      }));
+
+      await Future.wait(futures);
+    });
+
+    test('Bug: Should not set result to null when failed', () async {
+      await ref.set(null);
+      var f = [
+        for (var i = 0; i < 3; i++)
+          ref.runTransaction((v) async {
+            if (v.value != null) {
+              throw Exception('error');
+            }
+            return v..value = ServerValue.timestamp;
+          })
+      ];
+
+      var t = await Future.wait(f);
+
+      expect(t.first.committed, isTrue);
+      expect(t.skip(1).any((v) => v.committed), isFalse);
     });
   });
 

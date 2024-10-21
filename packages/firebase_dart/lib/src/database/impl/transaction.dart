@@ -64,11 +64,11 @@ class Transaction implements Comparable<Transaction> {
   void _onValue(Event _) {}
 
   void _watch() {
-    repo.listen(path.join('/'), null, 'value', _onValue);
+    repo.listen(path, null, 'value', _onValue);
   }
 
   void _unwatch() {
-    repo.unlisten(path.join('/'), null, 'value', _onValue);
+    repo.unlisten(path, null, 'value', _onValue);
   }
 
   /// Run the transaction and apply the result to the sync tree if
@@ -216,11 +216,19 @@ class TransactionsTree {
     return transaction.completer.future;
   }
 
+  Future<void>? _executeFuture;
+
   /// Executes all transactions
-  void execute() async {
-    await repo._syncTree.waitForAllProcessed();
-    var finished = await root.execute();
-    if (!finished) execute();
+  void execute() {
+    _executeFuture ??= Future(() async {
+      await repo._syncTree.waitForAllProcessed();
+      var finished = await root.execute();
+      _executeFuture = null;
+      if (!finished) {
+        await Future.delayed(Duration(milliseconds: 20));
+        execute();
+      }
+    });
   }
 
   /// Aborts all transactions at [path] with reason [exception]
@@ -234,6 +242,11 @@ class TransactionsTree {
     for (var n in n.childrenDeep) {
       n.abort(exception);
     }
+  }
+
+  Future<void> close() async {
+    abort(Path(), FirebaseDatabaseException.appDeleted());
+    await _executeFuture;
   }
 }
 
@@ -380,6 +393,7 @@ class TransactionsNode extends ModifiableTreeNode<Name, List<Transaction>> {
       }
       return true;
     } else {
+      if (_isRunning) return false;
       var allFinished = true;
       for (var k in children.keys.toList()) {
         allFinished = allFinished && await children[k]!.execute();
@@ -444,8 +458,9 @@ class TransactionsNode extends ModifiableTreeNode<Name, List<Transaction>> {
           // transaction might be aborted while running
           continue;
       }
-      v = v.updateChild(
-          p, t.currentOutputSnapshotResolved ?? TreeStructuredData());
+      if (t.currentOutputSnapshotResolved != null) {
+        v = v.updateChild(p, t.currentOutputSnapshotResolved!);
+      }
     }
     _isRunning = false;
     return true;
@@ -480,7 +495,7 @@ class TransactionsNode extends ModifiableTreeNode<Name, List<Transaction>> {
 
   void abort(FirebaseDatabaseException exception) {
     for (var txn in value) {
-      txn.abort(exception);
+      if (!txn.isComplete) txn.abort(exception);
     }
     value = value.where((t) => !t.isComplete).toList();
   }

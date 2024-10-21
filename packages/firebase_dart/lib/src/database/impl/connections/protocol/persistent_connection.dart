@@ -188,7 +188,7 @@ class PersistentConnectionImpl extends PersistentConnection
     try {
       var body = await _request(r);
       return body.warnings ?? [];
-    } on FirebaseDatabaseException catch (e) {
+    } on FirebaseDatabaseException {
       _tagToQuery.remove(tag);
       _removeListen(path, query);
 
@@ -196,7 +196,7 @@ class PersistentConnectionImpl extends PersistentConnection
           OperationEvent(OperationEventType.listenRevoked, def.path, null, def);
       if (!_onDataOperation.isClosed) _onDataOperation.add(event);
 
-      return [e.code];
+      rethrow;
     }
   }
 
@@ -421,7 +421,7 @@ class PersistentConnectionImpl extends PersistentConnection
   void _removeListen(String path, QueryFilter? query) {
     _listens.removeWhere((element) =>
         element.message.body.path == path &&
-        element.message.body.query == query);
+        (element.message.body.query ?? const QueryFilter()) == query);
   }
 
   void _restoreAuth() {

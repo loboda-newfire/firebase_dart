@@ -83,7 +83,7 @@ class RecaptchaVerifierImpl implements RecaptchaVerifier {
               theme: theme.name,
               sitekey: await (auth as FirebaseAuthImpl)
                   .rpcHandler
-                  .getRecaptchaParam()));
+                  .getRecaptchaSiteKey()));
       widgetId = newWidgetId;
     }
 

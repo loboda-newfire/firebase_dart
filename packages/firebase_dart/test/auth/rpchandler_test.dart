@@ -266,14 +266,14 @@ void main() {
         var tester = Tester(
             path: 'recaptchaParams',
             expectedBody: null,
-            action: () => rpcHandler.getRecaptchaParam(),
+            action: () => rpcHandler.getRecaptchaSiteKey(),
             expectedResult: (v) => v['recaptchaSiteKey'],
             method: 'GET');
 
         test('getRecaptchaParam: success', () async {
           await tester.shouldSucceed(
             serverResponse: {'recaptchaSiteKey': 'RECAPTCHA_SITE_KEY'},
-            action: () => rpcHandler.getRecaptchaParam(),
+            action: () => rpcHandler.getRecaptchaSiteKey(),
           );
         });
 

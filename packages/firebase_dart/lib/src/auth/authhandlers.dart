@@ -149,17 +149,18 @@ abstract class FirebaseAppAuthHandler implements AuthHandler {
 
 abstract class BaseApplicationVerifier implements ApplicationVerifier {
   @override
-  Future<ApplicationVerificationResult> verify(
-      FirebaseAuth auth, String nonce) async {
-    var p = Platform.current;
-    if (p is IOsPlatform || p is MacOsPlatform) {
-      var v = await verifyWithApns(auth);
-      if (v != null) return ApplicationVerificationResult.apns(v);
-    } else if (p is AndroidPlatform) {
-      var v = await verifyWithSafetyNet(auth, nonce);
-      if (v != null) return ApplicationVerificationResult.safetyNet(v);
+  Future<ApplicationVerificationResult> verify(FirebaseAuth auth, String nonce,
+      {bool forceRecaptcha = false}) async {
+    if (!forceRecaptcha) {
+      var p = Platform.current;
+      if (p is IOsPlatform || p is MacOsPlatform) {
+        var v = await verifyWithApns(auth);
+        if (v != null) return ApplicationVerificationResult.apns(v);
+      } else if (p is AndroidPlatform) {
+        var v = await verifyWithPlayIntegrity(auth, nonce);
+        if (v != null) return ApplicationVerificationResult.playItegrity(v);
+      }
     }
-
     var v = await verifyWithRecaptcha(auth);
     return ApplicationVerificationResult.recaptcha(v);
   }
@@ -180,8 +181,18 @@ abstract class BaseApplicationVerifier implements ApplicationVerifier {
     throw UnimplementedError();
   }
 
+  @protected
+  Future<String> getProducerProjectNumber(FirebaseAuth auth) async {
+    if (auth is FirebaseAuthImpl) {
+      return auth.rpcHandler.getProducerProjectNumber();
+    } else if (auth is IsolateFirebaseAuth) {
+      return auth.invoke(#getProducerProjectNumber);
+    }
+    throw UnimplementedError();
+  }
+
   Future<String?> verifyWithApns(FirebaseAuth auth);
-  Future<String?> verifyWithSafetyNet(FirebaseAuth auth, String nonce);
+  Future<String?> verifyWithPlayIntegrity(FirebaseAuth auth, String nonce);
   Future<String> verifyWithRecaptcha(FirebaseAuth auth) {
     var url = FirebaseAppAuthHandler.createAuthHandlerUrl(
       app: auth.app,

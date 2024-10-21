@@ -11,6 +11,7 @@ import 'package:firebase_dart/src/implementation.dart';
 import 'package:firebase_dart/src/storage.dart';
 import 'package:http/http.dart' as http;
 
+import '../database/impl/repo.dart';
 import 'isolate/auth.dart';
 import 'isolate/database.dart';
 import 'isolate/storage.dart';
@@ -54,7 +55,8 @@ class IsolateFirebaseImplementation extends BaseFirebaseImplementation {
       IsolateAuthHandler.from(authHandler),
       IsolateApplicationVerifier.from(applicationVerifier),
       IsolateSmsRetriever.from(smsRetriever),
-      httpClient
+      httpClient,
+      Repo.databaseConfiguration,
     ]));
 
     return commander;
@@ -68,6 +70,12 @@ class IsolateFirebaseImplementation extends BaseFirebaseImplementation {
       })
       ..registerFunction(#app.delete, (String name) {
         return Firebase.app(name).delete();
+      })
+      ..registerFunction(#updateDatabaseConfiguration, (
+          {Duration? keepQueriesSyncedDuration}) {
+        Repo.updateDatabaseConfiguration(
+          keepQueriesSyncedDuration: keepQueriesSyncedDuration,
+        );
       });
   }
 
@@ -79,6 +87,7 @@ class IsolateFirebaseImplementation extends BaseFirebaseImplementation {
     ApplicationVerifier applicationVerifier,
     SmsRetriever smsRetriever,
     http.Client? httpClient,
+    DatabaseConfiguration databaseConfiguration,
   ) async {
     _registerFunctions();
     FirebaseDart.setup(
@@ -92,6 +101,7 @@ class IsolateFirebaseImplementation extends BaseFirebaseImplementation {
               RegisteredFunctionCall(#launchUrl, [url], {#popup: popup}));
         },
         httpClient: httpClient);
+    Repo.databaseConfiguration = databaseConfiguration;
   }
 
   @override
@@ -103,6 +113,16 @@ class IsolateFirebaseImplementation extends BaseFirebaseImplementation {
         .execute(RegisteredFunctionCall(#createApp, [name, options]));
 
     return app;
+  }
+
+  Future<void> updateDatabaseConfiguration(
+      {Duration? keepQueriesSyncedDuration}) async {
+    var commander = await this.commander;
+
+    await commander
+        .execute(RegisteredFunctionCall(#updateDatabaseConfiguration, [], {
+      #keepQueriesSyncedDuration: keepQueriesSyncedDuration,
+    }));
   }
 
   @override
@@ -156,20 +176,22 @@ class IsolateApplicationVerifier implements ApplicationVerifier {
 
   IsolateApplicationVerifier.from(ApplicationVerifier applicationVerifier) {
     var worker = IsolateWorker()
-      ..registerFunction(#verify, (String appName, String nonce) {
+      ..registerFunction(#verify, (String appName, String nonce,
+          {bool forceRecaptcha = false}) {
         var app = Firebase.app(appName);
         return applicationVerifier.verify(
-            FirebaseAuth.instanceFor(app: app), nonce);
+            FirebaseAuth.instanceFor(app: app), nonce,
+            forceRecaptcha: forceRecaptcha);
       });
 
     _commander = worker.commander;
   }
 
   @override
-  Future<ApplicationVerificationResult> verify(
-      FirebaseAuth auth, String nonce) {
-    return _commander
-        .execute(RegisteredFunctionCall(#verify, [auth.app.name, nonce]));
+  Future<ApplicationVerificationResult> verify(FirebaseAuth auth, String nonce,
+      {bool forceRecaptcha = false}) {
+    return _commander.execute(RegisteredFunctionCall(
+        #verify, [auth.app.name, nonce], {#forceRecaptcha: forceRecaptcha}));
   }
 }
 

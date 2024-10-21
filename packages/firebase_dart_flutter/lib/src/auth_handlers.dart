@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-import 'dart:io' as io;
 
 import 'package:firebase_dart/implementation/pure_dart.dart';
 import 'package:firebase_dart/core.dart';
@@ -14,6 +12,7 @@ import 'package:platform_info/platform_info.dart' as platform_info;
 import 'package:logging/logging.dart';
 import 'package:uni_links/uni_links.dart';
 import 'package:flutter_apns_only/flutter_apns_only.dart';
+import 'package:crypto/crypto.dart';
 
 class GoogleAuthHandler extends DirectAuthHandler {
   GoogleAuthHandler() : super(GoogleAuthProvider.PROVIDER_ID);
@@ -203,14 +202,16 @@ class FlutterApplicationVerifier extends BaseApplicationVerifier {
   }
 
   @override
-  Future<String?> verifyWithSafetyNet(FirebaseAuth auth, String nonce) async {
+  Future<String?> verifyWithPlayIntegrity(
+      FirebaseAuth auth, String nonce) async {
     var available = await _isGooglePlayServicesAvailable;
     if (!available) return null;
 
     try {
-      var token = await _channel.invokeMethod<String>('getSafetyNetToken', {
-        'apiKey': auth.app.options.apiKey,
-        'nonce': nonce,
+      var n = base64Url.encode(sha256.convert(nonce.codeUnits).bytes);
+      var token = await _channel.invokeMethod<String>('requestIntegrityToken', {
+        'projectNumber': await getProducerProjectNumber(auth),
+        'nonce': n,
       });
       return token!;
     } catch (e, tr) {

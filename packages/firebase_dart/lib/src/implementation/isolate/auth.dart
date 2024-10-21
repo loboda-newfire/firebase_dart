@@ -244,8 +244,8 @@ class EncodeCall<T> extends BaseFunctionCall<Future> {
       try {
         var v = await baseCall.run();
         return encode(v);
-      } catch (e) {
-        throw encodeException(e);
+      } catch (e, tr) {
+        Error.throwWithStackTrace(encodeException(e), tr);
       }
     };
   }
@@ -636,6 +636,8 @@ class FirebaseAuthFunctionCall<T> extends BaseFunctionCall<T> {
         };
       case #verifyIosClient:
         return (auth as FirebaseAuthImpl).rpcHandler.verifyIosClient;
+      case #getProducerProjectNumber:
+        return (auth as FirebaseAuthImpl).rpcHandler.getProducerProjectNumber;
       case #userChanges:
         return () =>
             auth.userChanges().map<Map<String, dynamic>?>((v) => v?.toJson());

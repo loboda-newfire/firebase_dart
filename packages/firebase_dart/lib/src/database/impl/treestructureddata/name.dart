@@ -124,3 +124,7 @@ class _NameImpl extends Name {
     return null;
   }
 }
+
+extension NamePathX on Path<Name> {
+  String asString() => join('/');
+}

@@ -13,13 +13,14 @@ import 'package:hive/hive.dart';
 
 import '../../database.dart';
 import 'repo.dart';
+import 'tree.dart';
 import 'treestructureddata.dart';
 
 mixin BaseFirebaseDatabase implements FirebaseDatabase {
   AuthTokenProvider? get authTokenProvider;
 
   @override
-  DatabaseReference reference() => ReferenceImpl(this, <String>[]);
+  DatabaseReference reference() => ReferenceImpl(this, Path());
 
   @override
   Future<void> goOnline() async {
@@ -230,22 +231,18 @@ class DataSnapshotImpl extends DataSnapshot {
 }
 
 class QueryImpl extends Query {
-  final List<String> _pathSegments;
-  final String _path;
+  final Path<Name> _path;
   final BaseFirebaseDatabase db;
   final QueryFilter filter;
   final Repo _repo;
 
-  QueryImpl._(this.db, this._pathSegments, this.filter)
-      : _path = _pathSegments.map(Uri.encodeComponent).join('/'),
-        _repo = Repo(db);
+  QueryImpl._(this.db, this._path, this.filter) : _repo = Repo(db);
 
   @override
   Stream<Event> on(String eventType) =>
       _repo.createStream(reference(), filter, eventType);
 
-  Query _withFilter(QueryFilter filter) =>
-      QueryImpl._(db, _pathSegments, filter);
+  Query _withFilter(QueryFilter filter) => QueryImpl._(db, _path, filter);
 
   @override
   Query orderByChild(String child) {
@@ -329,7 +326,7 @@ class QueryImpl extends Query {
       _withFilter(filter.copyWith(limit: limit, reverse: true));
 
   @override
-  DatabaseReference reference() => ReferenceImpl(db, _pathSegments);
+  ReferenceImpl reference() => ReferenceImpl(db, _path);
 
   @override
   Future<void> keepSynced(bool value) async {
@@ -340,7 +337,7 @@ class QueryImpl extends Query {
 class ReferenceImpl extends QueryImpl with DatabaseReference {
   late OnDisconnect _onDisconnect;
 
-  ReferenceImpl(BaseFirebaseDatabase db, List<String> path)
+  ReferenceImpl(BaseFirebaseDatabase db, Path<Name> path)
       : super._(db, path, const QueryFilter()) {
     _onDisconnect = DisconnectImpl(this);
   }
@@ -349,7 +346,7 @@ class ReferenceImpl extends QueryImpl with DatabaseReference {
   OnDisconnect onDisconnect() => _onDisconnect;
 
   @override
-  late final Uri url = _repo.url.replace(path: _path);
+  late final Uri url = _repo.url.replace(path: path);
 
   @override
   Future<void> set(dynamic value, {dynamic priority}) =>
@@ -363,7 +360,7 @@ class ReferenceImpl extends QueryImpl with DatabaseReference {
 
   @override
   Future<void> setPriority(dynamic priority) =>
-      _repo.setWithPriority('$_path/.priority', priority, null);
+      _repo.setWithPriority(_path.child(Name.priorityKey), priority, null);
 
   @override
   Future<TransactionResult> runTransaction(
@@ -384,23 +381,23 @@ class ReferenceImpl extends QueryImpl with DatabaseReference {
   }
 
   @override
-  DatabaseReference child(String c) => ReferenceImpl(
-      db, [..._pathSegments, ...c.split('/').map(Uri.decodeComponent)]);
+  DatabaseReference child(String c) =>
+      ReferenceImpl(db, Path.from([..._path, ...Name.parsePath(c)]));
 
   @override
-  DatabaseReference? parent() => _pathSegments.isEmpty
-      ? null
-      : ReferenceImpl(
-          db, [..._pathSegments.sublist(0, _pathSegments.length - 1)]);
+  DatabaseReference? parent() =>
+      _path.isEmpty ? null : ReferenceImpl(db, _path.parent!);
 
   @override
-  DatabaseReference root() => ReferenceImpl(db, []);
+  DatabaseReference root() => ReferenceImpl(db, Path());
 
   @override
-  String get path => '/$_path';
+  String get path => '/${_path.join('/')}';
 
   @override
-  String? get key => _pathSegments.isEmpty ? null : _pathSegments.last;
+  String? get key => _path.isEmpty ? null : _path.last.toString();
+
+  Path<Name> get parsedPath => _path;
 }
 
 class DisconnectImpl extends OnDisconnect {

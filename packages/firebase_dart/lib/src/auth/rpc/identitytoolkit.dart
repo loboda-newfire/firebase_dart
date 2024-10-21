@@ -112,3 +112,83 @@ class IdentityToolkitApi implements id.IdentityToolkitApi {
       String servicePath = ''})
       : _requester = _MyApiRequester(client, rootUrl, servicePath);
 }
+
+// The classes below override the generated classes to add new fields as these
+// are not available in the firebaseapis package version <0.2.0. Once we no longer
+// support dart 2, we can upgrade to firebaseapis version >=0.2.0 and remove these
+// overrides.
+
+class V1Resource extends id.V1Resource {
+  final commons.ApiRequester _requester;
+
+  V1Resource(commons.ApiRequester client)
+      : _requester = client,
+        super(client);
+
+  @override
+  Future<GoogleCloudIdentitytoolkitV1GetRecaptchaParamResponse>
+      getRecaptchaParams({
+    String? $fields,
+  }) async {
+    final queryParams = <String, List<String>>{
+      if ($fields != null) 'fields': [$fields],
+    };
+
+    const url = 'v1/recaptchaParams';
+
+    final response = await _requester.request(
+      url,
+      'GET',
+      queryParams: queryParams,
+    );
+    return GoogleCloudIdentitytoolkitV1GetRecaptchaParamResponse.fromJson(
+        response as Map<String, dynamic>);
+  }
+}
+
+class GoogleCloudIdentitytoolkitV1GetRecaptchaParamResponse
+    extends id.GoogleCloudIdentitytoolkitV1GetRecaptchaParamResponse {
+  String? producerProjectNumber;
+
+  GoogleCloudIdentitytoolkitV1GetRecaptchaParamResponse.fromJson(Map json)
+      : producerProjectNumber = json.containsKey('producerProjectNumber')
+            ? json['producerProjectNumber'] as String
+            : null,
+        super(
+          kind: json.containsKey('kind') ? json['kind'] as String : null,
+          recaptchaSiteKey: json.containsKey('recaptchaSiteKey')
+              ? json['recaptchaSiteKey'] as String
+              : null,
+          recaptchaStoken: json.containsKey('recaptchaStoken')
+              ? json['recaptchaStoken'] as String
+              : null,
+        );
+}
+
+class GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo
+    extends v2.GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo {
+  String? playIntegrityToken;
+
+  GoogleCloudIdentitytoolkitV2StartMfaPhoneRequestInfo();
+
+  @override
+  Map<String, dynamic> toJson() => {
+        ...super.toJson(),
+        if (playIntegrityToken != null)
+          'playIntegrityToken': playIntegrityToken!,
+      };
+}
+
+class GoogleCloudIdentitytoolkitV1SendVerificationCodeRequest
+    extends id.GoogleCloudIdentitytoolkitV1SendVerificationCodeRequest {
+  String? playIntegrityToken;
+
+  GoogleCloudIdentitytoolkitV1SendVerificationCodeRequest();
+
+  @override
+  Map<String, dynamic> toJson() => {
+        ...super.toJson(),
+        if (playIntegrityToken != null)
+          'playIntegrityToken': playIntegrityToken!,
+      };
+}
