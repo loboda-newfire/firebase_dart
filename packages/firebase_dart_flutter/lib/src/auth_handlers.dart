@@ -10,7 +10,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:platform_info/platform_info.dart' as platform_info;
 import 'package:logging/logging.dart';
-import 'package:uni_links/uni_links.dart';
+
 import 'package:flutter_apns_only/flutter_apns_only.dart';
 import 'package:crypto/crypto.dart';
 
@@ -109,23 +109,11 @@ Future<Map<String, dynamic>> _getResult(String type) async {
   return v;
 }
 
+// Deep links handling for iOS had to be removed because
+// the uni_links library which was used for handling deep links conflicted with go_router.
+// uni_links library intercepted deep link before go_router did it, so deep link did not reach UI
 Future<Map<String, String>> _getDeepLinkResult() async {
-  var uri = await uriLinkStream.first;
-  var v = uri!.queryParameters;
-
-  var deepLink = Uri.parse(v['deep_link_id']!);
-  v = deepLink.queryParameters;
-
-  Map<String, dynamic>? error =
-      v['firebaseError'] == null ? null : json.decode(v['firebaseError']!);
-  if (error != null) {
-    var code = error['code'];
-    if (code.startsWith('auth/')) {
-      code = code.substring('auth/'.length);
-    }
-    throw FirebaseAuthException(code, error['message']);
-  }
-  return v;
+  return {};
 }
 
 class FlutterApplicationVerifier extends BaseApplicationVerifier {

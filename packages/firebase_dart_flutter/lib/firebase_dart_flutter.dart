@@ -39,7 +39,6 @@ class FirebaseDartFlutter {
         authHandler: AuthHandler.from([
           GoogleAuthHandler(),
           AppleAuthHandler(),
-          FlutterAuthHandler(),
           const AuthHandler(),
         ]),
         applicationVerifier: kIsWeb ? null : FlutterApplicationVerifier(),
